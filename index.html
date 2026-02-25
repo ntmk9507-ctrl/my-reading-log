@@ -3,54 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>知の書庫 - 読書メモ</title>
+    <title>知の書庫 Pro - 読書記録</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
     <style>
         :root { --primary: #5e72e4; }
-        body { background-color: #f4f7f9; padding: 20px; }
+        body { background-color: #f4f7f9; padding: 20px; font-size: 14px; }
         .container { max-width: 600px; }
         .hidden { display: none; }
         .book-card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; border-left: 5px solid var(--primary); }
         .flex-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 15px; }
-        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 10px 20px; border-radius: 20px; opacity: 0; transition: 0.3s; pointer-events: none; }
+        #interactive.viewport { width: 100%; height: 200px; overflow: hidden; position: relative; border: 2px solid #ccc; border-radius: 10px; margin-bottom: 10px; }
+        #interactive.viewport canvas, video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+        .history-section { margin-top: 10px; font-size: 0.8rem; }
     </style>
 </head>
 <body>
 
 <main class="container">
     <header>
-        <h2 style="text-align: center;">📚 思考を溜める読書記録</h2>
+        <h3 style="text-align: center;">📚 知の書庫 Pro</h3>
     </header>
 
     <section id="search-section">
-        <label for="isbn">ISBNを入力（13桁）</label>
-        <div class="flex-row">
-            <input type="number" id="isbn" placeholder="9784..." pattern="\d*">
-            <button onclick="searchAndFixBook()">本を固定</button>
+        <label>本を選択またはISBN入力</label>
+        <select id="book-history" onchange="selectFromHistory()">
+            <option value="">-- 最近読んだ本から選ぶ --</option>
+        </select>
+
+        <div class="flex-row" style="margin-top:10px;">
+            <input type="number" id="isbn" placeholder="ISBN 978..." pattern="\d*">
+            <button onclick="searchBook()">検索</button>
         </div>
-        <small>※「こころ」でテストする場合：9784101010038</small>
+        
+        <button id="scan-btn" class="outline" onclick="startScanner()">📷 バーコードスキャン</button>
+        <div id="interactive" class="viewport hidden"></div>
     </section>
 
     <section id="active-book" class="hidden">
         <div class="book-card">
-            <div style="display: flex; justify-content: space-between; align-items: start;">
-                <div>
-                    <strong id="display-title" style="font-size: 1.1rem;">タイトル</strong>
-                    <div id="display-author" style="font-size: 0.85rem; color: #666;">著者</div>
-                </div>
-                <button onclick="resetBook()" class="outline secondary" style="font-size: 0.7rem; width: auto; padding: 4px 8px;">本を変更</button>
-            </div>
-        </div>
-
-        <div style="background: white; padding: 20px; border-radius: 10px;">
-            <div class="flex-row">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap:10px;">
                 <div style="flex: 1;">
-                    <label for="page">ページ</label>
-                    <input type="number" id="page" placeholder="p.">
+                    <strong id="display-title">タイトル</strong><br>
+                    <span id="display-author" style="font-size: 0.8rem; color: #666;">著者</span>
                 </div>
-                <div style="flex: 2;">
-                    <label for="category">カテゴリ</label>
-                    <select id="category">
+                <div style="width: 120px;">
+                    <select id="category" style="margin-bottom: 0; font-size: 0.7rem;">
                         <option>仕事術</option>
                         <option>心理学</option>
                         <option>教養</option>
@@ -58,91 +56,133 @@
                     </select>
                 </div>
             </div>
+            <button onclick="resetBook()" class="outline secondary" style="font-size: 0.6rem; padding: 2px 5px; margin-top: 10px; width: auto;">本を変更</button>
+        </div>
 
-            <label for="memo">今の気づき・引用メモ</label>
-            <textarea id="memo" rows="4" placeholder="ここに入力して送信..."></textarea>
+        <div style="background: white; padding: 20px; border-radius: 10px;">
+            <div style="margin-bottom: 15px;">
+                <label for="page">ページ番号</label>
+                <input type="number" id="page" placeholder="p.">
+            </div>
+
+            <label for="memo">気づき・引用メモ</label>
+            <textarea id="memo" rows="4" placeholder="メモを入力..."></textarea>
             
+            <label for="photo">📸 図表などを撮影 (任意)</label>
+            <input type="file" id="photo" accept="image/*" capture="environment" style="font-size: 0.8rem;">
+
             <button id="submit-btn" onclick="sendMemo()">Notionへ送信</button>
         </div>
     </section>
-
-    <div id="toast" class="toast">Notionに送信しました</div>
 </main>
 
 <script>
     let currentBook = null;
+    let history = JSON.parse(localStorage.getItem('bookHistory') || '[]');
 
-    // 本の検索（修正版：429エラー対策も兼ねて丁寧な検索）
-    async function searchAndFixBook() {
-        const isbnInput = document.getElementById('isbn').value.trim();
-        const cleanIsbn = isbnInput.replace(/\D/g, '');
+    window.onload = updateHistoryDropdown;
 
-        if (cleanIsbn.length < 10) {
-            alert("正しいISBNを入力してください");
-            return;
+    function updateHistoryDropdown() {
+        const dropdown = document.getElementById('book-history');
+        dropdown.innerHTML = '<option value="">-- 最近読んだ本から選ぶ --</option>';
+        history.forEach((book, index) => {
+            const opt = document.createElement('option');
+            opt.value = index;
+            opt.innerText = book.title;
+            dropdown.appendChild(opt);
+        });
+    }
+
+    function selectFromHistory() {
+        const idx = document.getElementById('book-history').value;
+        if (idx !== "") {
+            currentBook = history[idx];
+            showActiveBook();
         }
+    }
 
+    async function searchBook() {
+        const isbn = document.getElementById('isbn').value.trim();
+        if (!isbn) return;
+        
         try {
-            const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanIsbn}`);
-            if (res.status === 429) {
-                alert("Google APIの制限中です。少し時間を置くか、ネット回線を切り替えてみてください。");
-                return;
-            }
+            const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
             const data = await res.json();
-            
-            if (data.items && data.items.length > 0) {
-                currentBook = data.items[0].volumeInfo;
-                currentBook.isbn = cleanIsbn; 
-                
-                document.getElementById('display-title').innerText = currentBook.title;
-                document.getElementById('display-author').innerText = currentBook.authors?.join(', ') || '不明';
-                
-                document.getElementById('search-section').classList.add('hidden');
-                document.getElementById('active-book').classList.remove('hidden');
-            } else {
-                alert("本が見つかりませんでした。");
-            }
-        } catch (e) {
-            alert("通信エラーが発生しました。");
-        }
+            if (data.items) {
+                const info = data.items[0].volumeInfo;
+                currentBook = { title: info.title, author: info.authors?.join(', ') || '不明', isbn: isbn };
+                saveToHistory(currentBook);
+                showActiveBook();
+            } else { alert("本が見つかりませんでした"); }
+        } catch (e) { alert("エラーが発生しました"); }
+    }
+
+    function saveToHistory(book) {
+        history = history.filter(h => h.isbn !== book.isbn);
+        history.unshift(book);
+        if (history.length > 10) history.pop();
+        localStorage.setItem('bookHistory', JSON.stringify(history));
+        updateHistoryDropdown();
+    }
+
+    function showActiveBook() {
+        document.getElementById('display-title').innerText = currentBook.title;
+        document.getElementById('display-author').innerText = currentBook.author;
+        document.getElementById('search-section').classList.add('hidden');
+        document.getElementById('active-book').classList.remove('hidden');
     }
 
     function resetBook() {
-        if(confirm("別の本に変更しますか？")) {
-            currentBook = null;
-            document.getElementById('search-section').classList.remove('hidden');
-            document.getElementById('active-book').classList.add('hidden');
-        }
+        document.getElementById('search-section').classList.remove('hidden');
+        document.getElementById('active-book').classList.add('hidden');
+    }
+
+    // スキャナー機能
+    function startScanner() {
+        const container = document.getElementById('interactive');
+        container.classList.remove('hidden');
+        Quagga.init({
+            inputStream: { name: "Live", type: "LiveStream", target: container },
+            decoder: { readers: ["ean_reader"] }
+        }, function(err) {
+            if (err) { alert("カメラを起動できません"); return; }
+            Quagga.start();
+        });
+
+        Quagga.onDetected(function(result) {
+            const code = result.codeResult.code;
+            if (code.startsWith('978')) {
+                document.getElementById('isbn').value = code;
+                Quagga.stop();
+                container.classList.add('hidden');
+                searchBook();
+            }
+        });
     }
 
     async function sendMemo() {
-        const memoText = document.getElementById('memo').value;
-        const pageNum = document.getElementById('page').value;
-        if (!memoText) { alert("メモを入力してください"); return; }
+        const btn = document.getElementById('submit-btn');
+        const memo = document.getElementById('memo').value;
+        const page = document.getElementById('page').value;
+        const photo = document.getElementById('photo').files[0];
 
-        // GASのURL（後で作成）
-        const gasUrl = "YOUR_GAS_URL_HERE"; 
+        if (!memo && !photo) { alert("内容を入力してください"); return; }
 
-        const payload = {
-            title: currentBook.title,
-            author: currentBook.authors?.join(', ') || '不明',
-            isbn: currentBook.isbn,
-            category: document.getElementById('category').value,
-            memo: memoText,
-            page: pageNum ? `p.${pageNum}` : ""
-        };
+        btn.disabled = true;
+        btn.innerText = "送信中...";
 
-        console.log("送信データ:", payload);
-        showToast();
-        document.getElementById('memo').value = ""; 
-    }
-
-    function showToast() {
-        const t = document.getElementById('toast');
-        t.style.opacity = "1";
-        setTimeout(() => { t.style.opacity = "0"; }, 2000);
+        // --- ここでGASに送信する処理（後ほど実装） ---
+        console.log("送信データ:", { ...currentBook, memo, page, category: document.getElementById('category').value });
+        
+        setTimeout(() => {
+            alert("送信完了（現在はログ出力のみ）");
+            document.getElementById('memo').value = "";
+            document.getElementById('page').value = ""; // ページ番号をクリア
+            document.getElementById('photo').value = ""; // 写真をクリア
+            btn.disabled = false;
+            btn.innerText = "Notionへ送信";
+        }, 1000);
     }
 </script>
-
 </body>
 </html>
