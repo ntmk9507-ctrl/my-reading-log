@@ -2,134 +2,110 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>知の書庫 - 連投メモモード</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知の書庫 - 読書メモ</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
     <style>
         :root { --primary: #5e72e4; }
-        body { background-color: #f4f7f9; padding-bottom: 40px; }
-        .container { max-width: 600px; margin-top: 15px; }
-        .book-focus-card { 
-            background: #fff; padding: 15px; border-radius: 12px; 
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 20px;
-            border-left: 5px solid var(--primary);
-        }
-        .memo-area { background: #fff; padding: 20px; border-radius: 12px; }
-        .status-badge { font-size: 0.75rem; padding: 2px 8px; border-radius: 10px; background: #e2e8f0; margin-left: 10px; }
+        body { background-color: #f4f7f9; padding: 20px; }
+        .container { max-width: 600px; }
         .hidden { display: none; }
-        .flex-row { display: flex; gap: 10px; align-items: flex-end; }
-        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 10px 20px; border-radius: 20px; opacity: 0; transition: 0.3s; pointer-events: none; }
+        .book-card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; border-left: 5px solid var(--primary); }
+        .flex-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 15px; }
+        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 10px 20px; border-radius: 20px; opacity: 0; transition: 0.3s; pointer-events: none; }
     </style>
 </head>
 <body>
 
 <main class="container">
     <header>
-        <h3 style="text-align: center;">📚 読書思考ログ</h3>
+        <h2 style="text-align: center;">📚 思考を溜める読書記録</h2>
     </header>
 
-    <div id="search-section">
-        <label for="isbn">ISBNを入力して本を固定</label>
+    <section id="search-section">
+        <label for="isbn">ISBNを入力（13桁）</label>
         <div class="flex-row">
             <input type="number" id="isbn" placeholder="9784..." pattern="\d*">
-            <button onclick="searchAndFixBook()" style="width: auto;">固定</button>
+            <button onclick="searchAndFixBook()">本を固定</button>
         </div>
-    </div>
+        <small>※「こころ」でテストする場合：9784101010038</small>
+    </section>
 
-    <div id="active-book" class="hidden">
-        <div class="book-focus-card">
-            <div style="display: flex; justify-content: space-between;">
+    <section id="active-book" class="hidden">
+        <div class="book-card">
+            <div style="display: flex; justify-content: space-between; align-items: start;">
                 <div>
-                    <strong id="display-title">タイトル</strong>
-                    <div id="display-author" style="font-size: 0.8rem; color: #666;"></div>
+                    <strong id="display-title" style="font-size: 1.1rem;">タイトル</strong>
+                    <div id="display-author" style="font-size: 0.85rem; color: #666;">著者</div>
                 </div>
-                <button onclick="resetBook()" class="outline secondary" style="font-size: 0.6rem; width: auto; padding: 5px 10px;">本を変更</button>
+                <button onclick="resetBook()" class="outline secondary" style="font-size: 0.7rem; width: auto; padding: 4px 8px;">本を変更</button>
             </div>
         </div>
 
-        <div class="memo-area">
+        <div style="background: white; padding: 20px; border-radius: 10px;">
             <div class="flex-row">
                 <div style="flex: 1;">
-                    <label for="page">ページ (任意)</label>
-                    <input type="number" id="page" placeholder="p.123">
+                    <label for="page">ページ</label>
+                    <input type="number" id="page" placeholder="p.">
                 </div>
                 <div style="flex: 2;">
                     <label for="category">カテゴリ</label>
-                    <select id="category"></select> </div>
-                <button onclick="addCategory()" class="outline" style="width: auto; padding: 5px 10px; margin-bottom: var(--spacing);">＋</button>
+                    <select id="category">
+                        <option>仕事術</option>
+                        <option>心理学</option>
+                        <option>教養</option>
+                        <option>その他</option>
+                    </select>
+                </div>
             </div>
 
-            <label for="memo">今の気づき・メモ</label>
-            <textarea id="memo" rows="4" placeholder="感じたこと、引用など自由に..."></textarea>
+            <label for="memo">今の気づき・引用メモ</label>
+            <textarea id="memo" rows="4" placeholder="ここに入力して送信..."></textarea>
             
-            <button id="submit-btn" onclick="sendMemo()" class="primary">メモを送信</button>
+            <button id="submit-btn" onclick="sendMemo()">Notionへ送信</button>
         </div>
-    </div>
+    </section>
 
     <div id="toast" class="toast">Notionに送信しました</div>
 </main>
 
 <script>
     let currentBook = null;
-    let categories = ["仕事術", "心理学", "教養", "技術書"];
 
-    // カテゴリリストの描画
-    function renderCategories() {
-        const select = document.getElementById('category');
-        select.innerHTML = "";
-        categories.sort().forEach(c => {
-            const opt = document.createElement('option');
-            opt.value = opt.textContent = c;
-            select.appendChild(opt);
-        });
-        const other = document.createElement('option');
-        other.value = other.textContent = "その他";
-        select.appendChild(other);
-    }
+    // 本の検索（修正版：429エラー対策も兼ねて丁寧な検索）
+    async function searchAndFixBook() {
+        const isbnInput = document.getElementById('isbn').value.trim();
+        const cleanIsbn = isbnInput.replace(/\D/g, '');
 
-    function addCategory() {
-        const newCat = prompt("新しいカテゴリー名:");
-        if (newCat && !categories.includes(newCat)) {
-            categories.push(newCat);
-            renderCategories();
-            document.getElementById('category').value = newCat;
+        if (cleanIsbn.length < 10) {
+            alert("正しいISBNを入力してください");
+            return;
+        }
+
+        try {
+            const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanIsbn}`);
+            if (res.status === 429) {
+                alert("Google APIの制限中です。少し時間を置くか、ネット回線を切り替えてみてください。");
+                return;
+            }
+            const data = await res.json();
+            
+            if (data.items && data.items.length > 0) {
+                currentBook = data.items[0].volumeInfo;
+                currentBook.isbn = cleanIsbn; 
+                
+                document.getElementById('display-title').innerText = currentBook.title;
+                document.getElementById('display-author').innerText = currentBook.authors?.join(', ') || '不明';
+                
+                document.getElementById('search-section').classList.add('hidden');
+                document.getElementById('active-book').classList.remove('hidden');
+            } else {
+                alert("本が見つかりませんでした。");
+            }
+        } catch (e) {
+            alert("通信エラーが発生しました。");
         }
     }
-
-    // 本の検索と画面切り替え（修正版）
-　　async function searchAndFixBook() {
-    　　const isbnInput = document.getElementById('isbn').value.trim();
-    　　// ハイフンが含まれていても大丈夫なように数字以外を除去
-    	const cleanIsbn = isbnInput.replace(/\D/g, '');
-
-　　    if (cleanIsbn.length < 10) {
-    　　    alert("ISBNコード（10桁または13桁）を入力してください");
-        　　return;
-    　　}
-
-　　    try {
-    　　    // q=isbn: をつけることで検索精度を上げます
-       　　 const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanIsbn}`);
-   　　     const data = await res.json();
-        
-       　　 if (data.items && data.items.length > 0) {
-           　　 currentBook = data.items[0].volumeInfo;
-          　　  currentBook.isbn = cleanIsbn; 
-            
-        　　    document.getElementById('display-title').innerText = currentBook.title;
-         　　   document.getElementById('display-author').innerText = currentBook.authors?.join(', ') || '不明';
-            
-           　　 document.getElementById('search-section').classList.add('hidden');
-          　　  document.getElementById('active-book').classList.remove('hidden');
-        　　} else {
-           　　 // ISBNで見つからなかった場合の予備：タイトル検索を試すか警告
-            　　alert("Google Booksで本が見つかりませんでした。番号が正しいか確認してください。");
-        　　}
-   　　 } catch (e) { 
-       　　 console.error(e);
-        　　alert("通信エラーが発生しました。ネット接続を確認してください。"); 
-    　　}
-　　}
 
     function resetBook() {
         if(confirm("別の本に変更しますか？")) {
@@ -139,14 +115,13 @@
         }
     }
 
-    // メモ送信（連投対応）
     async function sendMemo() {
         const memoText = document.getElementById('memo').value;
         const pageNum = document.getElementById('page').value;
-        
         if (!memoText) { alert("メモを入力してください"); return; }
 
-        const gasUrl = "あなたのGASウェブアプリURL"; // ★後ほどここに貼る
+        // GASのURL（後で作成）
+        const gasUrl = "YOUR_GAS_URL_HERE"; 
 
         const payload = {
             title: currentBook.title,
@@ -154,21 +129,12 @@
             isbn: currentBook.isbn,
             category: document.getElementById('category').value,
             memo: memoText,
-            page: pageNum ? `p.${pageNum}` : "" // 空欄OK
+            page: pageNum ? `p.${pageNum}` : ""
         };
 
-        // GASへ送信 (mode: 'no-cors' でブラウザ制限を回避)
-        fetch(gasUrl, {
-            method: 'POST',
-            mode: 'no-cors',
-            body: JSON.stringify(payload)
-        });
-
-        // 送信後のUI処理
+        console.log("送信データ:", payload);
         showToast();
-        document.getElementById('memo').value = ""; // メモ欄だけ空にする
-        // ページ数はあえて残すか空にするか選べますが、一旦残すと便利なのでそのまま
-        document.getElementById('memo').focus();
+        document.getElementById('memo').value = ""; 
     }
 
     function showToast() {
@@ -176,8 +142,6 @@
         t.style.opacity = "1";
         setTimeout(() => { t.style.opacity = "0"; }, 2000);
     }
-
-    renderCategories();
 </script>
 
 </body>
