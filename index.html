@@ -7,49 +7,25 @@
     <title>知の書庫 Pro - 読書記録</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
     <style>
-        :root { 
-            --primary: #5e72e4; 
-            --background-color: #f4f7f9;
-        }
-        /* スマホのダークモード設定に関わらず白地を強制 */
-        body { 
-            background-color: var(--background-color) !important; 
-            color: #333 !important;
-            padding: 20px; 
-            font-size: 14px; 
-        }
-        input, textarea, select, option { 
-            background-color: #ffffff !important; 
-            color: #333 !important; 
-            border-color: #ccc !important;
-        }
+        :root { --primary: #5e72e4; --background-color: #f4f7f9; }
+        body { background-color: var(--background-color) !important; color: #333 !important; padding: 20px; font-size: 14px; }
+        input, textarea, select, option { background-color: #ffffff !important; color: #333 !important; border-color: #ccc !important; }
         .container { max-width: 600px; }
         .hidden { display: none; }
-        .book-card { 
-            background: white !important; 
-            padding: 15px; 
-            border-radius: 10px; 
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
-            margin-bottom: 20px; 
-            border-left: 5px solid var(--primary); 
-            color: #333;
-        }
+        .book-card { background: white !important; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; border-left: 5px solid var(--primary); color: #333; }
         .flex-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 15px; }
     </style>
 </head>
 <body>
 
 <main class="container">
-    <header>
-        <h3 style="text-align: center;">📚 知の書庫 Pro</h3>
-    </header>
+    <header><h3 style="text-align: center;">📚 知の書庫 Pro</h3></header>
 
     <section id="search-section">
         <label>本を選択またはISBN入力</label>
         <select id="book-history" onchange="selectFromHistory()">
             <option value="">-- 最近読んだ本から選ぶ --</option>
         </select>
-
         <div class="flex-row" style="margin-top:10px;">
             <input type="number" id="isbn" placeholder="ISBN 978..." pattern="\d*">
             <button onclick="searchBook()">検索</button>
@@ -64,12 +40,7 @@
                     <span id="display-author" style="font-size: 0.8rem; color: #666;">著者</span>
                 </div>
                 <div style="width: 130px;">
-                    <select id="category" style="margin-bottom: 5px; font-size: 0.7rem;">
-                        <option>仕事術</option>
-                        <option>心理学</option>
-                        <option>教養</option>
-                        <option>その他</option>
-                    </select>
+                    <select id="category" style="margin-bottom: 5px; font-size: 0.7rem;"></select>
                     <button onclick="addNewCategory()" class="outline" style="font-size: 0.6rem; padding: 2px; width: 100%;">＋カテゴリ追加</button>
                 </div>
             </div>
@@ -81,41 +52,33 @@
                 <label for="page">ページ番号</label>
                 <input type="number" id="page" placeholder="p.">
             </div>
-
             <label for="memo">気づき・引用メモ</label>
             <textarea id="memo" rows="4" placeholder="メモを入力..."></textarea>
-            
             <label for="photo">📸 図表などを撮影 (任意)</label>
             <input type="file" id="photo" accept="image/*" capture="environment" style="font-size: 0.8rem;">
-
             <button id="submit-btn" onclick="sendMemo()">Notionへ送信</button>
         </div>
     </section>
 </main>
 
 <script>
+    const gasUrl = "https://script.google.com/macros/s/AKfycbx9-gA7L9IpeMZutgRMCtfiKZ6JPrqR_ggmz4dRwpJOJu1HEb4bSp3pdDYAnWHLM9I/exec";
     let currentBook = null;
     let history = JSON.parse(localStorage.getItem('bookHistory') || '[]');
     let categories = JSON.parse(localStorage.getItem('myCategories') || '["仕事術", "心理学", "教養"]');
 
-    window.onload = () => {
-        updateHistoryDropdown();
-        renderCategories();
-    };
+    window.onload = () => { updateHistoryDropdown(); renderCategories(); };
 
-    // カテゴリを「その他」を最後にして描画
     function renderCategories() {
         const select = document.getElementById('category');
         select.innerHTML = '';
         categories.forEach(cat => {
             const opt = document.createElement('option');
-            opt.value = cat;
-            opt.innerText = cat;
+            opt.value = cat; opt.innerText = cat;
             select.appendChild(opt);
         });
         const otherOpt = document.createElement('option');
-        otherOpt.value = 'その他';
-        otherOpt.innerText = 'その他';
+        otherOpt.value = 'その他'; otherOpt.innerText = 'その他';
         select.appendChild(otherOpt);
     }
 
@@ -134,32 +97,26 @@
         dropdown.innerHTML = '<option value="">-- 最近読んだ本から選ぶ --</option>';
         history.forEach((book, index) => {
             const opt = document.createElement('option');
-            opt.value = index;
-            opt.innerText = book.title;
+            opt.value = index; opt.innerText = book.title;
             dropdown.appendChild(opt);
         });
     }
 
     function selectFromHistory() {
         const idx = document.getElementById('book-history').value;
-        if (idx !== "") {
-            currentBook = history[idx];
-            showActiveBook();
-        }
+        if (idx !== "") { currentBook = history[idx]; showActiveBook(); }
     }
 
     async function searchBook() {
         const isbn = document.getElementById('isbn').value.trim();
         if (!isbn) return;
-        
         try {
             const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
             const data = await res.json();
             if (data.items) {
                 const info = data.items[0].volumeInfo;
                 currentBook = { title: info.title, author: info.authors?.join(', ') || '不明', isbn: isbn };
-                saveToHistory(currentBook);
-                showActiveBook();
+                saveToHistory(currentBook); showActiveBook();
             } else { alert("本が見つかりませんでした"); }
         } catch (e) { alert("エラーが発生しました"); }
     }
@@ -187,22 +144,49 @@
     async function sendMemo() {
         const btn = document.getElementById('submit-btn');
         const memo = document.getElementById('memo').value;
-        const photo = document.getElementById('photo').files[0];
+        const page = document.getElementById('page').value;
+        const photoFile = document.getElementById('photo').files[0];
 
-        if (!memo && !photo) { alert("内容を入力してください"); return; }
+        if (!memo && !photoFile) { alert("内容を入力してください"); return; }
 
         btn.disabled = true;
         btn.innerText = "送信中...";
 
-        // 成功をシミュレート（後のGAS連携で書き換え）
-        setTimeout(() => {
-            alert("送信完了");
+        let photoData = null;
+        if (photoFile) {
+            const reader = new FileReader();
+            photoData = await new Promise(resolve => {
+                reader.onload = () => resolve(reader.result);
+                reader.readAsDataURL(photoFile);
+            });
+        }
+
+        const payload = {
+            title: currentBook.title,
+            author: currentBook.author,
+            isbn: currentBook.isbn,
+            category: document.getElementById('category').value,
+            page: page,
+            memo: memo,
+            photo: photoData
+        };
+
+        try {
+            await fetch(gasUrl, {
+                method: "POST",
+                mode: "no-cors",
+                body: JSON.stringify(payload)
+            });
+            alert("Notionへ送信しました！（反映まで数秒かかります）");
             document.getElementById('memo').value = "";
             document.getElementById('page').value = "";
             document.getElementById('photo').value = "";
+        } catch (e) {
+            alert("エラーが発生しました。GASの設定を確認してください。");
+        } finally {
             btn.disabled = false;
             btn.innerText = "Notionへ送信";
-        }, 1000);
+        }
     }
 </script>
 </body>
