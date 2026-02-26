@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light">
-    <title>知の書庫 Pro - 読書記録</title>
+    <title>読書メモ Pro</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
     <style>
         :root { --primary: #5e72e4; --background-color: #f4f7f9; }
@@ -19,7 +19,7 @@
 <body>
 
 <main class="container">
-    <header><h3 style="text-align: center;">📚 知の書庫 Pro</h3></header>
+    <header><h3 style="text-align: center;">📚 読書メモ</h3></header>
 
     <section id="search-section">
         <label>本を選択またはISBN入力</label>
@@ -49,12 +49,12 @@
 
         <div style="background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
             <div style="margin-bottom: 15px;">
-                <label for="page">ページ番号</label>
+                <label for="page">ページ</label>
                 <input type="number" id="page" placeholder="p.">
             </div>
-            <label for="memo">気づき・引用メモ</label>
-            <textarea id="memo" rows="4" placeholder="メモを入力..."></textarea>
-            <label for="photo">📸 図表などを撮影 (任意)</label>
+            <label for="memo">メモ</label>
+            <textarea id="memo" rows="4" placeholder="気づきや引用を入力..."></textarea>
+            <label for="photo">📸 写真を撮影 (任意)</label>
             <input type="file" id="photo" accept="image/*" capture="environment" style="font-size: 0.8rem;">
             <button id="submit-btn" onclick="sendMemo()">Notionへ送信</button>
         </div>
@@ -62,7 +62,9 @@
 </main>
 
 <script>
-    const gasUrl = "https://script.google.com/macros/s/AKfycby5Z8aX7HStW8ltMzqzaOy4CUSaWW9xBc3f3l_NxZwYsELyFy4pYsP2Pp_D-qhxy3Q/exec";
+    // 新しいGAS URLを反映
+    const gasUrl = "https://script.google.com/macros/s/AKfycbzaV2JPmz-ZVsrJrbUycUq7f1YELGW4BNYI8dFk6Z321AbHPPMHY1pWcvrGhX4gQU8/exec";
+    
     let currentBook = null;
     let history = JSON.parse(localStorage.getItem('bookHistory') || '[]');
     let categories = JSON.parse(localStorage.getItem('myCategories') || '["仕事術", "心理学", "教養"]');
@@ -177,12 +179,12 @@
                 mode: "no-cors",
                 body: JSON.stringify(payload)
             });
-            alert("Notionへ送信しました！（反映まで数秒かかります）");
+            alert("Notionへ送信しました！反映まで数秒お待ちください。");
             document.getElementById('memo').value = "";
             document.getElementById('page').value = "";
             document.getElementById('photo').value = "";
         } catch (e) {
-            alert("エラーが発生しました。GASの設定を確認してください。");
+            alert("送信エラーが発生しました。URLまたはネット接続を確認してください。");
         } finally {
             btn.disabled = false;
             btn.innerText = "Notionへ送信";
@@ -191,4 +193,3 @@
 </script>
 </body>
 </html>
-
