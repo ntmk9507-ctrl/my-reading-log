@@ -14,6 +14,7 @@
         .hidden { display: none; }
         .book-card { background: white !important; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; border-left: 5px solid var(--primary); color: #333; }
         .flex-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 15px; }
+        .manual-entry { background: #e9ecef; padding: 15px; border-radius: 10px; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -29,6 +30,23 @@
         <div class="flex-row" style="margin-top:10px;">
             <input type="number" id="isbn" placeholder="ISBN 978..." pattern="\d*">
             <button onclick="searchBook()">検索</button>
+        </div>
+        <div style="text-align: center;">
+            <a href="#" onclick="toggleManualEntry(true)" style="font-size: 0.8rem;">見つからないので直接入力する</a>
+        </div>
+    </section>
+
+    <section id="manual-section" class="hidden manual-entry">
+        <h5>手動で本の情報を入力</h5>
+        <label>タイトル *</label>
+        <input type="text" id="manual-title" placeholder="本のタイトル">
+        <label>著者</label>
+        <input type="text" id="manual-author" placeholder="著者名">
+        <label>ISBN (任意)</label>
+        <input type="number" id="manual-isbn" placeholder="978...">
+        <div class="flex-row">
+            <button onclick="setManualBook()">この内容で決定</button>
+            <button class="outline secondary" onclick="toggleManualEntry(false)">キャンセル</button>
         </div>
     </section>
 
@@ -62,7 +80,6 @@
 </main>
 
 <script>
-    // 新しいGAS URLを反映
     const gasUrl = "https://script.google.com/macros/s/AKfycbx6ZFFviKYGj6a9DnYbDuJLYsCG4jVN5_QN-lEeTcbhbZ01hP8k-bfuFU43wAV6DnU/exec";
     
     let currentBook = null;
@@ -73,6 +90,7 @@
 
     function renderCategories() {
         const select = document.getElementById('category');
+        if(!select) return;
         select.innerHTML = '';
         categories.forEach(cat => {
             const opt = document.createElement('option');
@@ -109,6 +127,29 @@
         if (idx !== "") { currentBook = history[idx]; showActiveBook(); }
     }
 
+    // 手動入力フォームの表示切り替え
+    function toggleManualEntry(show) {
+        document.getElementById('manual-section').classList.toggle('hidden', !show);
+        document.getElementById('search-section').classList.toggle('hidden', show);
+        if(show) {
+            document.getElementById('manual-isbn').value = document.getElementById('isbn').value;
+        }
+    }
+
+    // 手動入力された値をセット
+    function setManualBook() {
+        const title = document.getElementById('manual-title').value.trim();
+        const author = document.getElementById('manual-author').value.trim() || "不明";
+        const isbn = document.getElementById('manual-isbn').value.trim() || "なし";
+
+        if (!title) { alert("タイトルは必須です"); return; }
+
+        currentBook = { title: title, author: author, isbn: isbn };
+        saveToHistory(currentBook);
+        toggleManualEntry(false);
+        showActiveBook();
+    }
+
     async function searchBook() {
         const isbn = document.getElementById('isbn').value.trim();
         if (!isbn) return;
@@ -119,12 +160,17 @@
                 const info = data.items[0].volumeInfo;
                 currentBook = { title: info.title, author: info.authors?.join(', ') || '不明', isbn: isbn };
                 saveToHistory(currentBook); showActiveBook();
-            } else { alert("本が見つかりませんでした"); }
+            } else { 
+                if(confirm("本が見つかりませんでした。手動で入力しますか？")) {
+                    toggleManualEntry(true);
+                }
+            }
         } catch (e) { alert("エラーが発生しました"); }
     }
 
     function saveToHistory(book) {
-        history = history.filter(h => h.isbn !== book.isbn);
+        // 同じタイトルの本があれば履歴から削除して最新にする
+        history = history.filter(h => h.title !== book.title);
         history.unshift(book);
         if (history.length > 10) history.pop();
         localStorage.setItem('bookHistory', JSON.stringify(history));
@@ -135,6 +181,7 @@
         document.getElementById('display-title').innerText = currentBook.title;
         document.getElementById('display-author').innerText = currentBook.author;
         document.getElementById('search-section').classList.add('hidden');
+        document.getElementById('manual-section').classList.add('hidden');
         document.getElementById('active-book').classList.remove('hidden');
     }
 
@@ -179,12 +226,12 @@
                 mode: "no-cors",
                 body: JSON.stringify(payload)
             });
-            alert("Notionへ送信しました！反映まで数秒お待ちください。");
+            alert("Notionへ送信しました！");
             document.getElementById('memo').value = "";
             document.getElementById('page').value = "";
             document.getElementById('photo').value = "";
         } catch (e) {
-            alert("送信エラーが発生しました。URLまたはネット接続を確認してください。");
+            alert("送信エラーが発生しました。");
         } finally {
             btn.disabled = false;
             btn.innerText = "Notionへ送信";
@@ -193,6 +240,3 @@
 </script>
 </body>
 </html>
-
-
-
